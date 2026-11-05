@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klientské propočty</title>
+<meta name="description" content="Finanční kalkulačka pro klienty: kolik odkládat, kolik budu mít, renta, inflace, spořicí účet a splátka úvěru – s grafem vývoje a tiskovým výstupem.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23009FB5'/%3E%3Cpath d='M9 24v-6M14 24V11M19 24v-9M24 24V7' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+
+/* Layout: hlavička s tyrkysovou linkou → otázky → zadání vlevo, odpověď (dlaždice, text, graf) vpravo. Vizuál podle klientských sestav. */
+:root{
+  --ink:#2B3742; --muted:#6B7783; --faint:#9AA6B2; --line:#E2E7EC; --card:#F2F4F3; --bg:#FFFFFF;
+  --brand:#009FB5; --brand-ink:#00869A; --brand-bg:#D4EDF1;
+  --blue:#2F6FB0; --green:#8BC63E; --green-ink:#4F9A2E; --green-bg:#EEF6E4;
+  --red:#D9574E; --red-ink:#C2433A; --red-bg:#FAE9E8; --orange:#E07B2E; --orange-ink:#CF6A1D; --orange-bg:#FCEEE2; --grey-bg:#EBEEED;
+  --f:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --r:10px; color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);font-size:14.5px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:22px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.num-t{font-variant-numeric:tabular-nums}
+
+/* Hlavička */
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:14px 24px}
+.brand{display:flex;gap:14px;align-items:center;min-width:0}
+.logo{width:44px;height:44px;border-radius:9px;background:var(--brand);display:grid;place-items:center;flex:none}
+.logo svg{width:22px;height:22px}
+.brand h1{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1.2;text-wrap:balance}
+.brand p{margin:3px 0 0;color:var(--muted);font-size:13.5px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.mini{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.mini input{all:unset;box-sizing:border-box;width:170px;max-width:100%;padding:7px 10px;border-radius:8px;background:var(--card);font-size:14px;color:var(--ink);text-transform:none;letter-spacing:0;font-weight:600}
+.mini input::placeholder{color:var(--faint);font-weight:400}
+.mini input:focus-visible{outline:2px solid var(--brand)}
+.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;font-size:14px}
+.btn:hover{background:var(--brand-ink)}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.btn svg{width:16px;height:16px}
+.rule{height:3px;background:var(--brand);border-radius:2px}
+
+/* Nadpisy sekcí s linkou */
+.sec{display:flex;align-items:center;gap:12px;margin:4px 0 0;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* Otázky */
+.questions{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:8px}
+.q{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:var(--r);background:var(--card);border:2px solid transparent;transition:background .15s,border-color .15s}
+.q:hover{background:#E9ECEB}
+.q:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.q .grp{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.q b{font-size:14.5px;font-weight:700;text-wrap:balance}
+.q span:last-child{font-size:12.5px;color:var(--muted)}
+.q[aria-pressed="true"]{background:var(--brand-bg);border-color:var(--brand)}
+.q[aria-pressed="true"] .grp{color:var(--brand-ink)}
+
+/* Hlavní plocha */
+.main{display:grid;grid-template-columns:minmax(0,330px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:880px){.main{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border-radius:var(--r);padding:16px}
+.inputs{display:flex;flex-direction:column;gap:16px}
+.inputs h3{margin:0;font-size:15px;font-weight:700}
+.field{display:flex;flex-direction:column;gap:6px}
+.frow{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.frow label{font-size:13.5px;color:var(--ink)}
+.num{display:flex;align-items:center;gap:6px;border-radius:7px;padding:5px 9px;background:#fff;min-width:0;border:1px solid transparent}
+.num:focus-within{border-color:var(--brand)}
+.num input{all:unset;width:105px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:14.5px}
+.num span{font-size:12px;color:var(--muted);white-space:nowrap}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;margin:6px 0;border-radius:2px;cursor:pointer;background:linear-gradient(var(--brand),var(--brand)) 0/var(--p,50%) 100% no-repeat,#D3D9D6}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid var(--brand)}
+input[type=range]:focus-visible{outline:2px solid var(--brand);outline-offset:4px}
+.extras{border-top:1px solid #DDE2E0;padding-top:14px;display:flex;flex-direction:column;gap:14px}
+.toggle{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;cursor:pointer;flex-wrap:wrap}
+.toggle input{accent-color:var(--brand);width:16px;height:16px;margin:0}
+.toggle small{font-weight:400;color:var(--muted)}
+
+.result{display:flex;flex-direction:column;gap:14px;min-width:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0;background:var(--grey-bg);container-type:inline-size}
+.tile .tl{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.tile .tv{overflow:hidden;font-size:22px;font-size:clamp(13px,11.5cqi,22px);font-weight:800;letter-spacing:-.01em;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink)}
+.tile .tc{font-size:12.5px;color:var(--muted)}
+.tile.lead .tv{font-size:30px;font-size:clamp(14px,12cqi,30px)}
+.tile.teal{background:var(--brand-bg)} .tile.teal .tv{color:var(--brand-ink)}
+.tile.green{background:var(--green-bg)} .tile.green .tv{color:var(--green-ink)}
+.tile.red{background:var(--red-bg)} .tile.red .tv{color:var(--red-ink)}
+.tile.orange{background:var(--orange-bg)} .tile.orange .tv{color:var(--orange-ink)}
+.tile .loss{font-size:13px;font-weight:700;color:var(--red-ink);margin-left:4px}
+.tile .gain{font-size:13px;font-weight:700;color:var(--muted);margin-left:4px}
+.pill{display:inline-block;align-self:flex-start;line-height:1.35;margin-top:4px;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:99px}
+.pill.good{background:#DCEFC9;color:var(--green-ink)} .pill.warn{background:#FADFC6;color:var(--orange-ink)} .pill.bad{background:#F6D3D0;color:var(--red-ink)}
+.pill i{font-style:normal;font-weight:400;opacity:.8}
+
+.callout{display:flex;gap:14px;align-items:flex-start;background:var(--brand-bg);border-left:4px solid var(--brand);border-radius:8px;padding:12px 14px}
+.callout .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.callout p{margin:0;font-size:14.5px;max-width:75ch}
+.callout p:first-child{font-weight:700}
+.copy{all:unset;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--brand-ink);white-space:nowrap;padding:2px 0}
+.copy:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+
+.chartcard{border:1px solid #DFE3E6;border-radius:12px;padding:12px 14px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cnote{font-size:11.5px;color:var(--muted);text-align:right}
+.chart{position:relative;width:100%;min-width:0}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend svg{flex:none}
+.tip{position:absolute;pointer-events:none;background:#fff;border:1px solid #DFE3E6;border-radius:8px;padding:8px 10px;font-size:12.5px;
+  box-shadow:0 6px 18px rgba(43,55,66,.12);white-space:nowrap;font-variant-numeric:tabular-nums;z-index:2}
+.tip b{display:block;margin-bottom:4px}
+.tip div{display:flex;justify-content:space-between;gap:14px}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:700;font-size:13.5px}
+.tbl{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:13px}
+th,td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--card)}
+.foot{font-size:12px;color:var(--muted);max-width:110ch;margin:0}
+.foot b{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- Tiskový výstup (A4 na šířku) ---------- */
+#printout{display:none}
+@page{size:A4 landscape;margin:0}
+@media print{
+  html,body{background:#fff}
+  body{padding:0!important;margin:0!important;font-size:12px}
+  .wrap{display:none!important}
+  #printout{display:block;width:297mm}
+  html,body{width:297mm;height:210mm;overflow:hidden}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+.pp{width:297mm;height:209mm;overflow:hidden;padding:9mm 12mm 8mm;box-sizing:border-box;display:flex;flex-direction:column;gap:7px;break-inside:avoid;break-after:avoid;color:var(--ink);font-family:var(--f)}
+.pp .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.pp .brand h1{font-size:21px}
+.pp .brand p{font-size:12.5px}
+.pp .pr{text-align:right;display:flex;flex-direction:column;gap:2px}
+.pp .pr b{font-size:16px}
+.pp .pr span{font-size:12px;color:var(--muted)}
+.pp .tiles{grid-template-columns:repeat(var(--n,4),minmax(0,1fr))}
+.pp .tile{padding:9px 12px}
+.pp .pill{font-size:10.5px;padding:1px 8px}
+.pp .tile .tv{font-size:19px;font-size:clamp(11px,11.5cqi,19px)}
+.pp .tile .tl{font-size:10px}
+.pp .tile.lead .tv{font-size:22px;font-size:clamp(12px,12cqi,22px)}
+.pp .sec{font-size:11.5px;margin:2px 0 0}
+.pp .chartcard{padding:8px 12px 8px;gap:4px}
+.pp .legend{font-size:11.5px;padding-top:6px}
+.pp .pbottom{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px;align-items:stretch}
+.pp .callout{padding:10px 12px}
+.pp .callout p{font-size:12px;max-width:none}
+.pp .callout .txt{gap:4px}
+.pp .assump{padding:9px 12px;display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;align-content:start}
+.pp .assump h4{grid-column:1/-1}
+.pp .assump h4{margin:0 0 3px;font-size:13px}
+.pp .assump div{display:flex;justify-content:space-between;gap:10px;font-size:12px}
+.pp .assump div span{color:var(--muted)}
+.pp .assump div b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pp .pfoot{font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:6px}
+.pp .pfoot b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M5 19V13M10 19V7M15 19V10M20 19V4"/></svg></div>
+      <div><h1>Klientské propočty</h1><p>Odpověď na otázku klienta s grafem vývoje a tiskovým výstupem</p></div>
+    </div>
+    <div class="meta">
+      <label class="mini" for="client"><span>Klient</span><input id="client" autocomplete="off" placeholder="Jméno klienta"></label>
+      <label class="mini" for="advisor"><span>Zpracoval</span><input id="advisor" autocomplete="off" placeholder="Jméno poradce"></label>
+      <button class="btn" id="print" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg>Tisk / PDF</button>
+    </div>
+  </header>
+  <div class="rule"></div>
+
+  <h2 class="sec">Otázka klienta</h2>
+  <div class="questions" id="questions"></div>
+
+  <div class="main">
+    <section class="card inputs" id="inputs" aria-label="Zadání"></section>
+    <section class="result" aria-live="polite">
+      <div class="tiles" id="tiles"></div>
+      <div class="callout"><div class="txt" id="a-say"></div><button class="copy" id="copy" type="button">Kopírovat</button></div>
+      <h2 class="sec">Vývoj v čase</h2>
+      <div class="chartcard">
+        <div class="cnote" id="cnote"></div>
+        <div class="chart" id="chart"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <details id="det"><summary>Tabulka po letech</summary><div class="tbl" id="tbl"></div></details>
+    </section>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+<div id="printout"></div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const nf0=new Intl.NumberFormat('cs-CZ',{maximumFractionDigits:0});
+const kc=v=>nf0.format(Math.round(v))+' Kč';
+const pct=(v,d=1)=>v.toLocaleString('cs-CZ',{minimumFractionDigits:d,maximumFractionDigits:d})+' %';
+const short=v=>{const a=Math.abs(v);if(a>=999500)return (v/1e6).toLocaleString('cs-CZ',{maximumFractionDigits:a>=1e7?1:2})+' mil.';if(a>=1e3)return nf0.format(v/1e3)+' tis.';return nf0.format(v)};
+const endFmt=v=>short(v)+' Kč';
+const pl=(n,a,b,c)=>n===1?a:(n>=2&&n<=4?b:c);
+const yrs=n=>n+' '+pl(n,'rok','roky','let');
+function doba(m){m=Math.round(m);const y=Math.floor(m/12),mo=m%12;const p=[];if(y)p.push(yrs(y));if(mo)p.push(mo+' '+pl(mo,'měsíc','měsíce','měsíců'));return p.length?p.join(' a '):'0 měsíců'}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const FOOT='Výpočet předpokládá měsíční připisování výnosu a vklady či splátky na konci měsíce, bez poplatků a daní (u spořicího účtu se daň z úroků odečítá). <b>Projekce, ne příslib</b> — skutečný vývoj se bude lišit. Výnos investic není zaručený. Dokument neslouží jako investiční doporučení.';
+
+/* ---------- finanční funkce (měsíční období, platba na konci) ---------- */
+const g=(a,m)=>Math.pow(1+a/1200,m);
+function fv(pv,pmt,a,m){const r=a/1200;if(!r)return pv+pmt*m;const G=g(a,m);return pv*G+pmt*(G-1)/r}
+function pmtGoal(goal,pv,a,m){const r=a/1200;if(!r)return (goal-pv)/m;const G=g(a,m);return (goal-pv*G)*r/(G-1)}
+function nper(goal,pv,pmt,a){if(pv>=goal)return 0;const r=a/1200;if(!r)return pmt>0?(goal-pv)/pmt:Infinity;
+  const num=goal*r+pmt,den=pv*r+pmt;if(den<=0)return Infinity;return Math.log(num/den)/Math.log(1+r)}
+function nperReal(goal,pv,pmt,a,inf){const r=a/1200;let v=pv;for(let m=0;m<=1200;m++){if(m>0)v=v*(1+r)+pmt;if(v>=goal*Math.pow(1+inf/100,m/12))return m}return Infinity}
+function rate(goal,pv,pmt,m){if(pv+pmt*m>=goal)return 0;let lo=0,hi=100;if(fv(pv,pmt,hi,m)<goal)return null;
+  for(let i=0;i<120;i++){const mid=(lo+hi)/2;if(fv(pv,pmt,mid,m)<goal)lo=mid;else hi=mid}return (lo+hi)/2}
+function withdraw(pv,a,m,end){const r=a/1200;if(!r)return (pv-end)/m;const G=g(a,m);return (pv*G-end)*r/(G-1)}
+function pvRenta(w,a,m,end){const r=a/1200;if(!r)return w*m+end;const G=g(a,m);return (w*(G-1)/r+end)/G}
+
+function simAcc(pv,pmt,a,months,opt={}){const r=a/1200,pts=[];let v=pv,c=pv;const rc=(opt.cmp??0)/1200;
+  for(let m=0;m<=months;m++){if(m>0){v=v*(1+r)+pmt;c=c*(1+rc)+pmt}
+    const p={m,dep:pv+pmt*m,value:v};if(opt.cmp!=null)p.cmp=c;if(opt.infl)p.real=v/Math.pow(1+opt.infl/100,m/12);pts.push(p)}return pts}
+function simRenta(pv,w,a,months){const r=a/1200,pts=[];let v=pv,cum=0;
+  for(let m=0;m<=months;m++){if(m>0){v=v*(1+r)-w;cum+=w}pts.push({m,bal:Math.max(v,0),cum})}return pts}
+function simLoan(P,a,months,a2){const r=a/1200,pay=withdraw(P,a,months,0);const r2=a2!=null?a2/1200:0,pay2=a2!=null?withdraw(P,a2,months,0):0;
+  const pts=[];let b=P,ci=0,b2=P,ci2=0;
+  for(let m=0;m<=months;m++){if(m>0){const i=b*r;ci+=i;b=b+i-pay;if(a2!=null){const i2=b2*r2;ci2+=i2;b2=b2+i2-pay2}}
+    const p={m,bal:Math.max(b,0),int:ci,paid:pay*m};if(a2!=null)p.int2=ci2;pts.push(p)}return pts}
+
+/* ---------- pole ---------- */
+const F={
+  cil:{l:'Cílová částka',u:'Kč',min:50000,max:20000000,st:10000,pow:1},
+  pocatek:{l:'Počáteční vklad',u:'Kč',min:0,max:5000000,st:5000,pow:1},
+  mesicne:{l:'Měsíční vklad',u:'Kč',min:0,max:50000,st:100,pow:1},
+  doba:{l:'Doba spoření',u:'let',min:1,max:45,st:1},
+  vynos:{l:'Očekávaný výnos',u:'% p.a.',min:0,max:15,st:.1,d:1},
+  naspor:{l:'Naspořená částka',u:'Kč',min:100000,max:30000000,st:10000,pow:1},
+  renta:{l:'Požadovaná renta',u:'Kč/měs.',min:1000,max:150000,st:500,pow:1},
+  dobaRenty:{l:'Doba čerpání',u:'let',min:1,max:40,st:1},
+  zustatek:{l:'Zůstatek na konci',u:'Kč',min:0,max:10000000,st:10000,pow:1},
+  vek:{l:'Věk klienta',u:'let',min:18,max:70,st:1},
+  vekRenty:{l:'Renta od věku',u:'let',min:40,max:75,st:1},
+  uzNaspor:{l:'Už naspořeno',u:'Kč',min:0,max:10000000,st:5000,pow:1},
+  vynosCerp:{l:'Výnos během čerpání',u:'% p.a.',min:0,max:10,st:.1,d:1},
+  ucet:{l:'Peníze na účtu',u:'Kč',min:10000,max:10000000,st:5000,pow:1},
+  urokUcet:{l:'Úrok spořicího účtu',u:'% p.a.',min:0,max:8,st:.1,d:1},
+  dan:{l:'Daň z úroků',u:'%',min:0,max:23,st:1},
+  dobaUcet:{l:'Doba',u:'let',min:1,max:40,st:1},
+  srovInv:{l:'Výnos investice',u:'% p.a.',min:0,max:15,st:.1,d:1},
+  uver:{l:'Výše úvěru',u:'Kč',min:100000,max:20000000,st:10000,pow:1},
+  sazba:{l:'Úroková sazba',u:'% p.a.',min:0,max:12,st:.01,d:2},
+  dobaUveru:{l:'Splatnost',u:'let',min:1,max:40,st:1},
+  infl:{l:'Inflace',u:'% p.a.',min:0,max:10,st:.1,d:1},
+  srov:{l:'Srovnávací výnos',u:'% p.a.',min:0,max:15,st:.1,d:1},
+  srovSazba:{l:'Srovnávací sazba',u:'% p.a.',min:0,max:12,st:.01,d:2},
+};
+const S={cil:1000000,pocatek:0,mesicne:3000,doba:15,vynos:6,naspor:3000000,renta:15000,dobaRenty:20,zustatek:0,
+  uver:4000000,sazba:4.89,dobaUveru:30,infl:2.5,srov:3,srovSazba:4.39,useInfl:false,useCmp:false,
+  vek:35,vekRenty:65,uzNaspor:0,vynosCerp:3,realGoal:false,ucet:500000,urokUcet:2.5,dan:15,dobaUcet:10,srovInv:6,client:'',advisor:''};
+try{const saved=JSON.parse(localStorage.getItem('kp-state')||'null');if(saved)Object.assign(S,saved)}catch(e){}
+const save=()=>{try{localStorage.setItem('kp-state',JSON.stringify(S))}catch(e){}};
+
+const Q=[
+ {id:'mesicne',grp:'Spoření',t:'Kolik mám měsíčně odkládat?',s:'abych měl(a) cílovou částku',f:['cil','pocatek','doba','vynos'],infl:1,goal:1,cmp:'srov'},
+ {id:'budu',grp:'Spoření',t:'Kolik budu mít?',s:'když budu pravidelně spořit',f:['mesicne','pocatek','doba','vynos'],infl:1,cmp:'srov'},
+ {id:'jakdlouho',grp:'Spoření',t:'Jak dlouho to potrvá?',s:'než dosáhnu cílové částky',f:['cil','mesicne','pocatek','vynos'],infl:1,goal:2,cmp:'srov'},
+ {id:'vynos',grp:'Spoření',t:'Jaký výnos potřebuji?',s:'aby moje vklady dosáhly cíle',f:['cil','mesicne','pocatek','doba'],infl:1,goal:1,cmp:'srov'},
+ {id:'jednoraz',grp:'Spoření',t:'Kolik musím jednorázově investovat?',s:'abych měl(a) cílovou částku',f:['cil','doba','vynos'],infl:1,goal:1,cmp:'srov'},
+ {id:'renta',grp:'Renta',t:'Kolik si můžu měsíčně vybírat?',s:'z naspořené částky',f:['naspor','dobaRenty','vynos','zustatek']},
+ {id:'narentu',grp:'Renta',t:'Kolik potřebuji na rentu?',s:'aby mi vyplácela měsíčně',f:['renta','dobaRenty','vynos','zustatek']},
+ {id:'stihnu',grp:'Renta',t:'Stihnu si naspořit na rentu?',s:'kolik odkládat od dnešního věku',f:['vek','vekRenty','renta','dobaRenty','uzNaspor','vynos','vynosCerp'],infl:1,goal:2,cmp:'srov'},
+ {id:'sporak',grp:'Inflace',t:'Peníze na spořicím účtu jsou v bezpečí?',s:'co s nimi udělá inflace',f:['ucet','urokUcet','dan','infl','dobaUcet'],cmp:'srovInv'},
+ {id:'hypo',grp:'Úvěr',t:'Jaká bude splátka?',s:'hypotéky nebo úvěru',f:['uver','sazba','dobaUveru'],cmp:'srovSazba'},
+];
+let cur=Q[0];
+const h=(location.hash||'').slice(1);
+try{const lq=localStorage.getItem('kp-q');if(lq&&Q.find(q=>q.id===lq))cur=Q.find(q=>q.id===lq)}catch(e){}
+if(Q.find(q=>q.id===h))cur=Q.find(q=>q.id===h);
+
+/* ---------- otázky ---------- */
+function renderQuestions(){
+  $('#questions').innerHTML=Q.map(q=>`<button class="q" type="button" data-q="${q.id}" aria-pressed="${q===cur}"><span class="grp">${q.grp}</span><b>${q.t}</b><span>${q.s}</span></button>`).join('');
+  document.querySelectorAll('.q').forEach(b=>b.onclick=()=>{cur=Q.find(q=>q.id===b.dataset.q);try{localStorage.setItem('kp-q',cur.id)}catch(e){};renderQuestions();renderInputs();update()});
+}
+
+/* ---------- vstupy ---------- */
+const toT=(k,v)=>{const f=F[k];const x=Math.min(Math.max(v,f.min),f.max);const p=(x-f.min)/(f.max-f.min);return Math.round((f.pow?Math.sqrt(p):p)*1000)};
+const fromT=(k,t)=>{const f=F[k];const p=t/1000;let v=f.min+(f.max-f.min)*(f.pow?p*p:p);v=Math.round(v/f.st)*f.st;return +v.toFixed(f.d||0)};
+const show=(k,v)=>F[k].d?v.toLocaleString('cs-CZ',{minimumFractionDigits:F[k].d,maximumFractionDigits:F[k].d}):nf0.format(v);
+function fieldHTML(k){const f=F[k];return `<div class="field"><div class="frow"><label for="f-${k}">${f.l}</label><div class="num"><input id="f-${k}" data-k="${k}" inputmode="decimal" autocomplete="off" value="${show(k,S[k])}"><span>${f.u}</span></div></div><input type="range" id="r-${k}" data-k="${k}" min="0" max="1000" value="${toT(k,S[k])}" style="--p:${toT(k,S[k])/10}%" aria-label="${f.l}"></div>`}
+const cmpLab=()=>cur.cmp==='srovSazba'?['Srovnat s jinou sazbou','např. refinancování']:cur.cmp==='srovInv'?['Srovnat s investicí','dlouhodobý výnos']:['Srovnat s jiným výnosem','např. spořicí účet'];
+const realLab=()=>cur.id==='stihnu'?['Renta v dnešní kupní síle','navýší rentu o inflaci']:['Cílová částka v dnešní kupní síle','dopočte nominální cíl'];
+function renderInputs(){
+  let html='<h3>Zadání</h3>'+cur.f.map(fieldHTML).join('');
+  if(cur.infl||cur.cmp){html+='<div class="extras">';
+    if(cur.infl)html+=`<div class="field"><label class="toggle"><input type="checkbox" id="t-infl" ${S.useInfl?'checked':''}> Zohlednit inflaci <small>reálná hodnota</small></label>${S.useInfl?fieldHTML('infl')+(cur.goal?`<label class="toggle"><input type="checkbox" id="t-real" ${S.realGoal?'checked':''}> ${realLab()[0]} <small>${realLab()[1]}</small></label>`:''):''}</div>`;
+    if(cur.cmp){const [lab,sm]=cmpLab();html+=`<div class="field"><label class="toggle"><input type="checkbox" id="t-cmp" ${S.useCmp?'checked':''}> ${lab} <small>${sm}</small></label>${S.useCmp?fieldHTML(cur.cmp):''}</div>`}
+    html+='</div>'}
+  $('#inputs').innerHTML=html;
+  document.querySelectorAll('#inputs input[type=range]').forEach(r=>r.oninput=()=>{const k=r.dataset.k;S[k]=fromT(k,+r.value);r.style.setProperty('--p',r.value/10+'%');$('#f-'+k).value=show(k,S[k]);update()});
+  document.querySelectorAll('#inputs .num input').forEach(i=>{
+    i.oninput=()=>{const k=i.dataset.k;const v=parseFloat(i.value.replace(/[\s ]/g,'').replace(',','.'));if(isFinite(v)&&v>=0){S[k]=v;const rr=$('#r-'+k);rr.value=toT(k,v);rr.style.setProperty('--p',toT(k,v)/10+'%');update()}};
+    i.onblur=()=>{i.value=show(i.dataset.k,S[i.dataset.k])};
+    i.onfocus=()=>i.select();
+  });
+  const ti=$('#t-infl');if(ti)ti.onchange=()=>{S.useInfl=ti.checked;renderInputs();update()};
+  const tr=$('#t-real');if(tr)tr.onchange=()=>{S.realGoal=tr.checked;update()};
+  const tc=$('#t-cmp');if(tc)tc.onchange=()=>{S.useCmp=tc.checked;renderInputs();update()};
+}
+
+/* ---------- barvy grafu ---------- */
+const K={blue:'#2F6FB0',green:'#8BC63E',greenInk:'#5D9224',red:'#D9574E',orange:'#E07B2E',teal:'#009FB5',grey:'#8E9691',faint:'#9AA6B2',ink:'#2B3742'};
+function accLayers(cmpLabel,infl,cmpRate,mainRate){const lower=cmpRate!=null&&cmpRate<mainRate;const L=[
+  {k:'value',base:'dep',kind:'hatch',lab:'Výnos',tipK:'yield'}];
+  if(cmpLabel)L.push({k:'cmp',base:'value',kind:'fill',color:lower?'#FAE3E1':'#E4F1D6',noLeg:1});
+  L.push({k:'dep',kind:'line',color:K.faint,dash:'2 5',w:2.5,lab:'Vlastní vklady'});
+  if(cmpLabel)L.push({k:'cmp',kind:'line',color:lower?K.red:K.green,dash:'7 6',w:2.5,lab:cmpLabel,end:1});
+  if(infl)L.push({k:'real',kind:'line',color:K.grey,dash:'5 4',w:2,lab:'Hodnota po započtení inflace',end:1});
+  L.push({k:'value',kind:'line',color:K.blue,w:3.2,lab:'Hodnota investice',end:1,main:1});
+  return L}
+function accTable(pts){return {head:['Rok','Vloženo celkem','Výnos','Hodnota'],rows:yearly(pts).map(p=>[p.m/12===Math.floor(p.m/12)?p.m/12:(p.m/12).toFixed(1).replace('.',','),kc(p.dep),kc(p.value-p.dep),kc(p.value)])}}
+function yearly(pts){const out=pts.filter(p=>p.m>0&&p.m%12===0);const last=pts[pts.length-1];if(last.m%12)out.push(last);return out}
+const lossTag=(real,base)=>real<base?` <small class="loss">−${pct((1-real/base)*100,0)}</small>`:'';
+
+/* ---------- výpočet podle otázky ---------- */
+let REALG=false;
+function compute(){
+  const useI=cur.infl&&S.useInfl;REALG=!!(cur.goal&&useI&&S.realGoal);if(!REALG||cur.goal!==1)return compute0();
+  const cil0=S.cil,nom=cil0*Math.pow(1+S.infl/100,S.doba);S.cil=nom;let R;try{R=compute0()}finally{S.cil=cil0}
+  R.say.splice(1,0,`Cílovou částku ${kc(cil0)} chcete mít v dnešní kupní síle. Při inflaci ${pct(S.infl)} ročně jí za ${yrs(S.doba)} odpovídá ${kc(nom)} a s touto částkou výpočet počítá.`);
+  R.stats.push(['Cíl v dnešní kupní síle',`${kc(cil0)} <small class="gain">nominálně +${pct((nom/cil0-1)*100,0)}</small>`,'grey']);
+  R.ref={y:nom,lab:'Cíl nominálně'};R.ref2={y:cil0,lab:`Cíl v dnešních Kč ${short(cil0)}`};return R;
+}
+function compute0(){
+  const q=cur.id,useC=cur.cmp&&S.useCmp,useI=cur.infl&&S.useInfl;
+  const R={label:'',big:'',unit:'',chip:null,say:[],stats:[],layers:[],pts:[],ref:null,table:null,tone:'teal'};
+  if(q==='mesicne'){
+    const m=S.doba*12;let p=pmtGoal(S.cil,S.pocatek,S.vynos,m);const already=p<=0;if(already)p=0;
+    R.pts=simAcc(S.pocatek,p,S.vynos,m,{cmp:useC?S.srov:null,infl:useI?S.infl:0});
+    const dep=S.pocatek+p*m,end=R.pts[m].value;
+    R.label='Potřebný měsíční vklad';R.big=kc(p);R.unit=`měsíčně po dobu ${yrs(S.doba)}`;R.sub=`Cíl ${kc(S.cil)} za ${yrs(S.doba)} při výnosu ${pct(S.vynos)} ročně`;
+    R.say.push(already?`Cílové částky ${kc(S.cil)} dosáhnete za ${yrs(S.doba)} už jen z počátečního vkladu ${kc(S.pocatek)} při výnosu ${pct(S.vynos)} ročně.`
+      :`Abyste za ${yrs(S.doba)} měli ${kc(S.cil)}, stačí při výnosu ${pct(S.vynos)} ročně odkládat ${kc(p)} měsíčně. Sami vložíte ${kc(dep)}, zbylých ${kc(end-dep)} doplní zhodnocení.`);
+    if(useC){const p2=Math.max(0,pmtGoal(S.cil,S.pocatek,S.srov,m));R.say.push(`Při výnosu ${pct(S.srov)} byste museli odkládat ${kc(p2)} měsíčně, tedy o ${kc(p2-p)} víc. Se stejným vkladem byste měli jen ${kc(R.pts[m].cmp)}.`)}
+    if(useI&&!REALG){const nom=S.cil*Math.pow(1+S.infl/100,S.doba),p3=Math.max(0,pmtGoal(nom,S.pocatek,S.vynos,m));
+      R.say.push(`Při inflaci ${pct(S.infl)} bude mít ${kc(S.cil)} za ${yrs(S.doba)} kupní sílu dnešních ${kc(S.cil/Math.pow(1+S.infl/100,S.doba))}. Pro dnešní hodnotu by cíl měl být ${kc(nom)} a měsíční vklad ${kc(p3)}.`)}
+    R.stats=[['Vlastní vklady',kc(dep),'grey'],['Výnos',kc(end-dep),'green'],['Konečná hodnota',kc(end),'grey']];
+    if(useI&&!REALG){const real=S.cil/Math.pow(1+S.infl/100,S.doba);R.stats.push(['Kupní síla na konci horizontu',kc(real)+lossTag(real,S.cil),'red']);R.ref2={y:real,lab:`Kupní síla na konci horizontu ${short(real)}`}}
+    R.layers=accLayers(useC?`Stejný vklad při ${pct(S.srov)}`:null,useI,useC?S.srov:null,S.vynos);R.ref={y:S.cil,lab:'Cíl'};R.table=accTable(R.pts);
+  }
+  else if(q==='budu'){
+    const m=S.doba*12;R.pts=simAcc(S.pocatek,S.mesicne,S.vynos,m,{cmp:useC?S.srov:null,infl:useI?S.infl:0});
+    const end=R.pts[m].value,dep=S.pocatek+S.mesicne*m;
+    R.label='Konečná hodnota';R.big=kc(end);R.unit='za '+yrs(S.doba);R.sub=`${kc(S.mesicne)} měsíčně${S.pocatek>0?` + ${kc(S.pocatek)} na začátku`:''} · ${yrs(S.doba)} · výnos ${pct(S.vynos)} ročně`;
+    R.say.push(`Když budete ${yrs(S.doba)} odkládat ${kc(S.mesicne)} měsíčně${S.pocatek>0?` a na začátku vložíte ${kc(S.pocatek)}`:''}, budete mít při výnosu ${pct(S.vynos)} ročně ${kc(end)}. Z toho ${kc(dep)} jsou vaše vklady a ${kc(end-dep)} výnos.`);
+    if(useC){const e2=R.pts[m].cmp;R.say.push(`Při výnosu ${pct(S.srov)} by to bylo ${kc(e2)}, tedy o ${kc(Math.abs(end-e2))} ${end>=e2?'méně':'více'}.`)}
+    if(useI)R.say.push(`Při inflaci ${pct(S.infl)} to odpovídá dnešním ${kc(R.pts[m].real)}.`);
+    R.stats=[['Vlastní vklady',kc(dep),'grey'],['Výnos',kc(end-dep),'green'],['Zhodnocení vkladů',dep>0?pct((end/dep-1)*100):'–','grey']];
+    if(useI){const real=R.pts[m].real;R.stats.push(['Kupní síla na konci horizontu',kc(real)+lossTag(real,end),'red']);R.ref2={y:real,lab:`Kupní síla na konci horizontu ${short(real)}`}}
+    R.layers=accLayers(useC?`Při ${pct(S.srov)}`:null,useI,useC?S.srov:null,S.vynos);R.table=accTable(R.pts);
+  }
+  else if(q==='jakdlouho'){
+    const NP=a=>REALG?nperReal(S.cil,S.pocatek,S.mesicne,a,S.infl):nper(S.cil,S.pocatek,S.mesicne,a);const n=NP(S.vynos);R.label='Doba do dosažení cíle';
+    R.sub=`Cíl ${kc(S.cil)} · ${kc(S.mesicne)} měsíčně · výnos ${pct(S.vynos)} ročně`;
+    if(!isFinite(n)||n>1200){R.big=n>1200?'víc než 100 let':'cíle nedosáhnete';R.unit='';R.tone='red';
+      R.say.push(S.mesicne<=0&&S.vynos<=0?'Bez měsíčního vkladu a bez výnosu částka neroste. Zadejte měsíční vklad nebo výnos.':`S vkladem ${kc(S.mesicne)} měsíčně a výnosem ${pct(S.vynos)} cíle ${kc(S.cil)} v rozumné době nedosáhnete. Zvyšte vklad nebo počáteční částku.`);
+      R.pts=simAcc(S.pocatek,S.mesicne,S.vynos,480,{cmp:useC?S.srov:null});R.layers=accLayers(useC?`Při ${pct(S.srov)}`:null,0,useC?S.srov:null,S.vynos);R.ref={y:S.cil,lab:'Cíl'};
+      R.stats=[['Za 40 let budete mít',kc(R.pts[480].value),'grey']];R.table=accTable(R.pts);return R}
+    const months=Math.max(1,Math.ceil(n));
+    let horizon=months;let n2=null;
+    if(useC){n2=NP(S.srov);if(isFinite(n2)&&n2<=1200)horizon=Math.max(months,Math.ceil(n2));else horizon=Math.max(months,Math.min(1200,Math.ceil(months*1.6)))}
+    R.pts=simAcc(S.pocatek,S.mesicne,S.vynos,horizon,{cmp:useC?S.srov:null,infl:useI?S.infl:0});if(REALG)R.pts.forEach(p=>p.goal=S.cil*Math.pow(1+S.infl/100,p.m/12));
+    const dep=S.pocatek+S.mesicne*months;
+    R.big=n===0?'už teď':doba(months);R.unit=n===0?'':'při současném vkladu';
+    R.say.push(n===0?`Cílovou částku ${kc(S.cil)} pokrývá už počáteční vklad.`:`S vkladem ${kc(S.mesicne)} měsíčně${S.pocatek>0?` a počáteční částkou ${kc(S.pocatek)}`:''} dosáhnete ${kc(S.cil)} při výnosu ${pct(S.vynos)} ročně za ${doba(months)}.`);
+    if(useC)R.say.push(isFinite(n2)&&n2<=1200?`Při výnosu ${pct(S.srov)} by to trvalo ${doba(Math.ceil(n2))}, tedy o ${doba(Math.max(0,Math.ceil(n2)-months))} déle.`:`Při výnosu ${pct(S.srov)} byste cíle v rozumné době nedosáhli.`);
+    R.stats=[['Vlastní vklady',kc(dep),'grey'],['Výnos',kc(Math.max(0,R.pts[months].value-dep)),'green'],['Hodnota v cíli',kc(R.pts[months].value),'grey']];
+    R.layers=accLayers(useC?`Při ${pct(S.srov)}`:null,useI,useC?S.srov:null,S.vynos);R.mark=months;R.markKind='line';R.markLab='cíl splněn';
+    if(REALG){const gn=S.cil*Math.pow(1+S.infl/100,months/12);R.layers.splice(R.layers.length-1,0,{k:'goal',kind:'line',color:K.teal,dash:'4 4',w:2,lab:'Cíl navýšený o inflaci',end:1});
+      R.say.splice(1,0,`Cílovou částku ${kc(S.cil)} chcete mít v dnešní kupní síle. S inflací ${pct(S.infl)} ročně cíl průběžně roste a v okamžiku dosažení odpovídá ${kc(gn)}.`);
+      R.ref2={y:S.cil,lab:`Cíl v dnešních Kč ${short(S.cil)}`};R.stats.push(['Cíl nominálně v tu dobu',kc(gn),'grey'])}
+    else{R.ref={y:S.cil,lab:'Cíl'};if(useI){const real=R.pts[months].real;R.stats.push(['Kupní síla na konci horizontu',kc(real)+lossTag(real,R.pts[months].value),'red']);R.say.push(`Při inflaci ${pct(S.infl)} bude mít tato částka v té době kupní sílu dnešních ${kc(real)}.`)}}
+    R.table=accTable(R.pts.slice(0,months+1));
+  }
+  else if(q==='vynos'){
+    const m=S.doba*12,rt=rate(S.cil,S.pocatek,S.mesicne,m);const dep=S.pocatek+S.mesicne*m;R.label='Potřebný průměrný výnos';
+    R.sub=`Cíl ${kc(S.cil)} za ${yrs(S.doba)} · ${kc(S.mesicne)} měsíčně`;
+    if(rt===null){R.big='nad 100 % p.a.';R.unit='';R.tone='red';R.chip=['bad','Nedosažitelné',false];
+      R.say.push(`Vklady ${kc(S.mesicne)} měsíčně za ${yrs(S.doba)} na ${kc(S.cil)} nestačí. Navyšte vklad nebo prodlužte dobu.`);
+      R.pts=simAcc(S.pocatek,S.mesicne,0,m,{cmp:useC?S.srov:null});R.layers=accLayers(useC?`Při ${pct(S.srov)}`:null,0,useC?S.srov:null,0);R.ref={y:S.cil,lab:'Cíl'};R.stats=[['Vlastní vklady',kc(dep),'grey']];R.table=accTable(R.pts);return R}
+    R.big=pct(rt,2);R.unit='ročně v průměru';
+    R.chip=rt===0?['good','Stačí samotné vklady']:rt<=3?['good','Konzervativní úroveň']:rt<=6?['good','Vyvážená úroveň']:rt<=9?['warn','Dynamická úroveň, počítejte s výkyvy']:['bad','Dlouhodobě těžko dosažitelné'];
+    R.pts=simAcc(S.pocatek,S.mesicne,rt,m,{cmp:useC?S.srov:null,infl:useI?S.infl:0});
+    R.say.push(rt===0?`Na ${kc(S.cil)} dosáhnete i bez zhodnocení, vaše vklady za ${yrs(S.doba)} dají ${kc(dep)}.`:`Aby vklady ${kc(S.mesicne)} měsíčně${S.pocatek>0?` a počáteční ${kc(S.pocatek)}`:''} za ${yrs(S.doba)} narostly na ${kc(S.cil)}, potřebujete průměrný výnos ${pct(rt,2)} ročně.`);
+    if(useC){const e2=R.pts[m].cmp;R.say.push(`Při výnosu ${pct(S.srov)} byste měli ${kc(e2)}, ${e2<S.cil?`do cíle by chybělo ${kc(S.cil-e2)}`:'cíl byste splnili'}.`)}
+    R.stats=[['Vlastní vklady',kc(dep),'grey'],['Výnos',kc(S.cil-dep>0?S.cil-dep:0),'green'],['Cíl',kc(S.cil),'grey']];
+    R.layers=accLayers(useC?`Při ${pct(S.srov)}`:null,useI,useC?S.srov:null,rt);R.ref={y:S.cil,lab:'Cíl'};R.table=accTable(R.pts);
+    if(useI&&!REALG){const real=S.cil/Math.pow(1+S.infl/100,S.doba);R.stats.push(['Kupní síla na konci horizontu',kc(real)+lossTag(real,S.cil),'red']);R.ref2={y:real,lab:`Kupní síla na konci horizontu ${short(real)}`};R.say.push(`Při inflaci ${pct(S.infl)} bude mít ${kc(S.cil)} za ${yrs(S.doba)} kupní sílu dnešních ${kc(real)}.`)}
+  }
+  else if(q==='jednoraz'){
+    const m=S.doba*12,G=g(S.vynos,m),pv=S.cil/G;
+    R.pts=simAcc(pv,0,S.vynos,m,{cmp:useC?S.srov:null,infl:useI?S.infl:0});
+    R.label='Potřebná jednorázová investice';R.big=kc(pv);R.unit='vložit dnes';R.sub=`Cíl ${kc(S.cil)} za ${yrs(S.doba)} při výnosu ${pct(S.vynos)} ročně`;
+    R.say.push(`Abyste za ${yrs(S.doba)} měli ${kc(S.cil)}, stačí dnes jednorázově investovat ${kc(pv)} při výnosu ${pct(S.vynos)} ročně. Zbylých ${kc(S.cil-pv)} doplní zhodnocení, investice se tak zvětší ${G.toLocaleString('cs-CZ',{maximumFractionDigits:2})}×.`);
+    if(useC){const pv2=S.cil/g(S.srov,m);R.say.push(`Při výnosu ${pct(S.srov)} byste museli vložit ${kc(pv2)}, tedy o ${kc(pv2-pv)} víc. Se stejným vkladem byste měli jen ${kc(R.pts[m].cmp)}.`)}
+    R.stats=[['Výnos',kc(S.cil-pv),'green'],['Investice se zvětší',G.toLocaleString('cs-CZ',{maximumFractionDigits:2})+'×','grey'],['Cíl',kc(S.cil),'grey']];
+    if(useI&&!REALG){const real=S.cil/Math.pow(1+S.infl/100,S.doba),pv3=S.cil*Math.pow(1+S.infl/100,S.doba)/G;
+      R.say.push(`Při inflaci ${pct(S.infl)} bude mít ${kc(S.cil)} za ${yrs(S.doba)} kupní sílu dnešních ${kc(real)}. Aby cíl odpovídal dnešní hodnotě, bylo by potřeba vložit ${kc(pv3)}.`);
+      R.stats.push(['Kupní síla na konci horizontu',kc(real)+lossTag(real,S.cil),'red']);R.ref2={y:real,lab:`Kupní síla na konci horizontu ${short(real)}`}}
+    R.layers=accLayers(useC?`Stejný vklad při ${pct(S.srov)}`:null,useI,useC?S.srov:null,S.vynos);R.layers.find(L=>L.k==='dep').lab='Jednorázový vklad';R.ref={y:S.cil,lab:'Cíl'};R.table=accTable(R.pts);
+  }
+  else if(q==='renta'||q==='narentu'){
+    const m=S.dobaRenty*12;let pv,w;
+    if(q==='renta'){pv=S.naspor;w=withdraw(pv,S.vynos,m,S.zustatek);R.label='Měsíční renta';R.sub=`Z ${kc(pv)} po dobu ${yrs(S.dobaRenty)} při výnosu ${pct(S.vynos)} ročně`}
+    else{w=S.renta;pv=pvRenta(w,S.vynos,m,S.zustatek);R.label='Potřebná naspořená částka';R.sub=`Renta ${kc(w)} měsíčně po dobu ${yrs(S.dobaRenty)} při výnosu ${pct(S.vynos)} ročně`}
+    const balL=[{k:'bal',kind:'hatch',noLeg:1},{k:'bal',kind:'line',color:K.green,w:3.2,lab:'Zůstatek na účtu',main:1}];
+    if(w<=0){R.big=kc(0);R.unit='měsíčně';R.tone='red';R.say.push(`Požadovaný zůstatek ${kc(S.zustatek)} je vyšší, než kolik naspořená částka při výnosu ${pct(S.vynos)} za ${yrs(S.dobaRenty)} vydělá. Snižte zůstatek nebo prodlužte dobu.`);
+      R.pts=simRenta(pv,0,S.vynos,m);R.layers=balL;R.stats=[];R.table=null;return R}
+    R.pts=simRenta(pv,w,S.vynos,m);const total=w*m,yieldv=total+S.zustatek-pv;
+    if(q==='renta'){R.big=kc(w);R.unit=`měsíčně po dobu ${yrs(S.dobaRenty)}`;R.say.push(`Z ${kc(pv)} si můžete ${yrs(S.dobaRenty)} vybírat ${kc(w)} měsíčně${S.zustatek>0?` a na konci vám zůstane ${kc(S.zustatek)}`:''}, pokud zbytek peněz vydělává ${pct(S.vynos)} ročně.`)}
+    else{R.big=kc(pv);R.unit='naspořeno na začátku renty';R.say.push(`Na rentu ${kc(w)} měsíčně po dobu ${yrs(S.dobaRenty)}${S.zustatek>0?` se zůstatkem ${kc(S.zustatek)}`:''} potřebujete mít naspořeno ${kc(pv)}, pokud peníze během čerpání vydělávají ${pct(S.vynos)} ročně.`)}
+    R.say.push(`Celkem vyberete ${kc(total)}, z toho ${kc(Math.max(0,yieldv))} pokryje výnos během čerpání.`);
+    R.stats=[[q==='renta'?'Naspořeno':'Měsíční renta',q==='renta'?kc(pv):kc(w),'grey'],['Celkem vyberete',kc(total),'orange'],['Z toho výnos',kc(Math.max(0,yieldv)),'green']];
+    R.layers=[balL[0],{k:'cum',kind:'line',color:K.orange,w:2.5,lab:'Vybráno celkem',end:1},balL[1]];
+    R.table={head:['Rok','Vybráno celkem','Zůstatek'],rows:yearly(R.pts).map(p=>[p.m/12,kc(p.cum),kc(p.bal)])};
+  }
+  else if(q==='stihnu'){
+    const ys=S.vekRenty-S.vek;R.label='Potřebný měsíční odklad';
+    if(ys<=0){R.big='—';R.tone='red';R.say.push('Věk, od kterého chce klient rentu pobírat, musí být vyšší než jeho současný věk.');
+      R.pts=[{m:0,bal:0},{m:12,bal:0}];R.layers=[{k:'bal',kind:'line',color:K.green,w:3,lab:'Hodnota účtu'}];R.table=null;return R}
+    const n=ys*12,mD=S.dobaRenty*12,r1=S.vynos/1200,r2=S.vynosCerp/1200;
+    const rentaNom=REALG?S.renta*Math.pow(1+S.infl/100,ys):S.renta;
+    const target=pvRenta(rentaNom,S.vynosCerp,mD,0);
+    let p=pmtGoal(target,S.uzNaspor,S.vynos,n);const ok=p<=0;if(ok)p=0;
+    let v=S.uzNaspor,dep=S.uzNaspor,cum=0;
+    for(let m=0;m<=n+mD;m++){if(m>0){if(m<=n){v=v*(1+r1)+p;dep+=p}else{v=v*(1+r2)-rentaNom;cum+=rentaNom}}R.pts.push({m,bal:Math.max(v,0),dep,cum})}
+    const atRet=R.pts[n].bal;
+    R.big=kc(p);R.unit=`měsíčně do ${S.vekRenty} let`;R.sub=`Věk ${S.vek} let · renta ${kc(S.renta)} měsíčně od ${S.vekRenty} let po dobu ${yrs(S.dobaRenty)}`;
+    if(ok){R.chip=['good','Ano, už naspořená částka stačí',false];
+      R.say.push(`Ano. Už naspořených ${kc(S.uzNaspor)} naroste při výnosu ${pct(S.vynos)} ročně do ${S.vekRenty} let na ${kc(atRet)}. To na rentu ${kc(rentaNom)} měsíčně po dobu ${yrs(S.dobaRenty)} stačí bez dalších vkladů.`)}
+    else R.say.push(`Abyste od ${S.vekRenty} let mohli ${yrs(S.dobaRenty)} pobírat rentu ${kc(rentaNom)} měsíčně, potřebujete mít v ${S.vekRenty} letech naspořeno ${kc(target)}. Do té doby zbývá ${yrs(ys)}, takže při výnosu ${pct(S.vynos)} ročně je potřeba odkládat ${kc(p)} měsíčně.`);
+    if(useI&&!REALG)R.say.push(`Renta ${kc(S.renta)} bude mít při inflaci ${pct(S.infl)} v ${S.vekRenty} letech kupní sílu jen dnešních ${kc(S.renta/Math.pow(1+S.infl/100,ys))}. Pokud má klient na mysli dnešní hodnotu, zaškrtněte „Renta v dnešní kupní síle“.`);
+    if(REALG)R.say.push(`Renta ${kc(S.renta)} v dnešních penězích bude při inflaci ${pct(S.infl)} za ${yrs(ys)} odpovídat ${kc(rentaNom)} měsíčně. Výpočet počítá s touto částkou.`);
+    if(!ok&&ys>5){const p5=Math.max(0,pmtGoal(target,fv(S.uzNaspor,0,S.vynos,60),S.vynos,n-60));
+      R.say.push(`Když se začne o 5 let později, bude potřeba odkládat ${kc(p5)} měsíčně, tedy o ${kc(p5-p)} víc.`)}
+    if(useC){const p2=Math.max(0,pmtGoal(target,S.uzNaspor,S.srov,n));R.say.push(`Při výnosu ${pct(S.srov)} během spoření by byl potřeba odklad ${kc(p2)} měsíčně.`)}
+    R.stats=[[`Potřeba v ${S.vekRenty} letech`,kc(target),'grey'],['Vlastní vklady',kc(S.uzNaspor+p*n),'grey'],['Výnos během spoření',kc(Math.max(0,atRet-(S.uzNaspor+p*n))),'green']];
+    R.layers=[{k:'bal',kind:'hatch',noLeg:1},{k:'dep',kind:'line',color:K.faint,dash:'2 5',w:2.5,lab:'Vlastní vklady'},{k:'cum',kind:'line',color:K.orange,w:2.5,lab:'Vyplaceno na rentě',end:1},{k:'bal',kind:'line',color:K.green,w:3.2,lab:'Hodnota účtu',main:1}];
+    R.age=S.vek;R.mark=n;R.markKind='band';R.markLab=`renta od ${S.vekRenty} let`;R.peak={m:n,v:atRet,color:K.greenInk};
+    R.table={head:['Věk','Vloženo celkem','Vyplaceno','Hodnota účtu'],rows:yearly(R.pts).map(q=>[S.vek+q.m/12,kc(q.dep),kc(q.cum),kc(q.bal)])};
+  }
+  else if(q==='sporak'){
+    const n=S.dobaUcet*12,net=S.urokUcet*(1-S.dan/100),rn=net/1200,inf=1+S.infl/100;
+    for(let m=0;m<=n;m++){const d=Math.pow(inf,m/12),nom=S.ucet*Math.pow(1+rn,m);const p={m,value:nom,real:nom/d,cash:S.ucet/d};if(useC)p.cmpReal=S.ucet*Math.pow(1+S.srovInv/1200,m)/d;R.pts.push(p)}
+    const e=R.pts[n],loss=S.ucet-e.real,realRate=(Math.pow(1+rn,12)/inf-1)*100,be=S.infl/(1-S.dan/100);
+    R.label=`Kupní síla za ${yrs(S.dobaUcet)}`;R.big=kc(e.real);R.unit='v dnešních penězích';R.tone=loss>0?'red':'green';
+    R.sub=`${kc(S.ucet)} na spořicím účtu · úrok ${pct(S.urokUcet)} · inflace ${pct(S.infl)} ročně`;
+    R.chip=realRate<0?['bad',`Reálně ztrácíte ${pct(-realRate,2)} ročně`,false]:['good',`Reálně vyděláváte ${pct(realRate,2)} ročně`,false];R.autoMin=1;
+    R.say.push(`Na výpisu uvidíte za ${yrs(S.dobaUcet)} ${kc(e.value)}, tedy o ${kc(e.value-S.ucet)} víc než dnes. Po zdanění úroků a při inflaci ${pct(S.infl)} ročně si ale za tuto částku koupíte jen tolik, co dnes za ${kc(e.real)}.`);
+    R.say.push(loss>0?`Peníze jsou v bezpečí jen na papíře. Reálně ztratí ${kc(loss)} kupní síly, tedy ${pct(loss/S.ucet*100)}.`
+      :`Úrok teď inflaci pokrývá a reálně si polepšíte o ${kc(-loss)}. Jakmile ale úrok klesne pod ${pct(be,2)}, začnou peníze reálně ztrácet.`);
+    R.say.push(`Na běžném účtu bez úroku by z ${kc(S.ucet)} zbyla kupní síla ${kc(e.cash)}.`);
+    if(useC)R.say.push(`Při investici s výnosem ${pct(S.srovInv)} ročně (bez zdanění) by kupní síla za ${yrs(S.dobaUcet)} byla ${kc(e.cmpReal)}, tedy o ${kc(e.cmpReal-e.real)} víc než na spořicím účtu.`);
+    R.stats=[['Na výpisu',kc(e.value),'grey'],['Úroky po zdanění',kc(e.value-S.ucet),'grey'],['Ztráta kupní síly',loss>0?kc(loss):'žádná',loss>0?'red':'green']];
+    if(useC)R.stats.push([`Při investici ${pct(S.srovInv)}`,kc(e.cmpReal),'green']);
+    R.layers=[{k:'cash',kind:'line',color:K.faint,dash:'2 5',w:2.5,lab:'Kupní síla na běžném účtu',end:1},{k:'value',kind:'line',color:K.grey,w:2.5,lab:'Na výpisu (nominálně)',end:1}];
+    if(useC)R.layers.push({k:'cmpReal',kind:'line',color:K.green,dash:'7 6',w:2.5,lab:`Kupní síla při investici ${pct(S.srovInv)}`,end:1});
+    R.layers.push({k:'real',kind:'line',color:K.red,w:3.2,lab:'Kupní síla na spořicím účtu',end:1,main:1});
+    R.ref={y:S.ucet,lab:'Dnešní hodnota'};
+    R.table={head:['Rok','Na výpisu','Kupní síla','Na běžném účtu'].concat(useC?['Při investici']:[]),rows:yearly(R.pts).map(p=>[p.m/12,kc(p.value),kc(p.real),kc(p.cash)].concat(useC?[kc(p.cmpReal)]:[]))};
+  }
+  else if(q==='hypo'){
+    const m=S.dobaUveru*12,pay=withdraw(S.uver,S.sazba,m,0);R.pts=simLoan(S.uver,S.sazba,m,useC?S.srovSazba:null);
+    const total=pay*m,int=total-S.uver;R.label='Měsíční splátka';R.big=kc(pay);R.unit=`po dobu ${yrs(S.dobaUveru)}`;R.sub=`Úvěr ${kc(S.uver)} · sazba ${pct(S.sazba,2)} · splatnost ${yrs(S.dobaUveru)}`;
+    R.say.push(`Úvěr ${kc(S.uver)} na ${yrs(S.dobaUveru)} při sazbě ${pct(S.sazba,2)} znamená splátku ${kc(pay)} měsíčně. Celkem zaplatíte ${kc(total)}, z toho ${kc(int)} na úrocích.`);
+    if(useC){const p2=withdraw(S.uver,S.srovSazba,m,0),d=pay-p2;R.say.push(`Při sazbě ${pct(S.srovSazba,2)} by splátka byla ${kc(p2)}, tedy o ${kc(Math.abs(d))} ${d>=0?'méně':'více'} měsíčně a o ${kc(Math.abs(d*m))} ${d>=0?'méně':'více'} za celou dobu.`)}
+    R.stats=[['Celkem zaplatíte',kc(total),'grey'],['Z toho úroky',kc(int),'orange'],['Úroky / úvěr',pct(int/S.uver*100,0),'grey']];
+    if(useC){const p2=withdraw(S.uver,S.srovSazba,m,0);R.stats.push([`Splátka při ${pct(S.srovSazba,2)}`,kc(p2),p2<pay?'green':'red'])}
+    R.layers=[{k:'bal',kind:'fill',color:'#E3EDF7',noLeg:1},{k:'bal',kind:'line',color:K.blue,w:3,lab:'Zbývá splatit',main:1},{k:'int',kind:'line',color:K.orange,w:2.5,lab:'Zaplaceno na úrocích',end:1}];
+    if(useC)R.layers.push({k:'int2',kind:'line',color:S.srovSazba<S.sazba?K.green:K.red,dash:'7 6',w:2.5,lab:`Úroky při ${pct(S.srovSazba,2)}`,end:1});
+    R.table={head:['Rok','Zaplaceno','Z toho úroky','Zbývá splatit'],rows:yearly(R.pts).map(p=>[p.m/12,kc(p.paid),kc(p.int),kc(p.bal)])};
+  }
+  return R;
+}
+
+/* ---------- graf ---------- */
+function nice(max){if(max<=0)return {step:1,top:1};const raw=max/4,mag=Math.pow(10,Math.floor(Math.log10(raw)));const n=raw/mag;const s=(n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*mag;return {step:s,top:Math.ceil(max/s)*s}}
+const dashSvg=(c,dash,w)=>`<svg width="24" height="8" aria-hidden="true"><line x1="2" y1="4" x2="22" y2="4" stroke="${c}" stroke-width="${Math.min(w||2.5,3)}" ${dash?`stroke-dasharray="${dash}"`:''} stroke-linecap="round"/></svg>`;
+const hatchSw=pre=>`<svg width="16" height="12" aria-hidden="true"><defs><pattern id="lgH${pre}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#EEF6E4"/><line x1="0" y1="0" x2="0" y2="5" stroke="#B5D98A" stroke-width="2"/></pattern></defs><rect width="16" height="12" rx="2" fill="url(#lgH${pre})"/></svg>`;
+function legendHTML(R,pre=''){
+  let out=R.layers.filter(L=>!L.noLeg&&L.lab).map(L=>L.kind==='hatch'?`<span>${hatchSw(pre)}${L.lab}</span>`:L.kind==='fill'?`<span><i class="sw" style="background:${L.color}"></i>${L.lab}</span>`:`<span>${dashSvg(L.color,L.dash,L.w)}${L.lab}</span>`);
+  if(R.ref)out.push(`<span>${dashSvg(K.teal,'4 4',1.5)}${R.ref.lab}</span>`);
+  if(R.ref2)out.push(`<span>${dashSvg(K.grey,'2 3',1.5)}${R.ref2.lab.replace(/\s[\d\s, ]+(mil\.|tis\.).*$/,'')}</span>`);
+  if(R.markKind==='band')out.push(`<span><i class="sw" style="background:#E6E9E8"></i>šedé pásmo = ${R.markLab}</span>`);
+  return out.join('');
+}
+function chartNote(R){const M=R.pts[R.pts.length-1].m;return R.age!=null?`Kč · věk klienta ${R.age}–${Math.round(R.age+M/12)} let`:`Kč · horizont ${doba(M)}`}
+
+let lastR=null;
+function drawChart(R,el,o={}){
+  const W=o.W||Math.max(300,el.clientWidth||600),narrow=W<560,H=o.H||(narrow?270:330);
+  const ends=R.layers.filter(L=>L.end&&L.kind==='line');
+  const fsEnd=narrow?12.5:(o.W?15:16.5);
+  const pad={l:narrow?50:72,r:ends.length?(narrow?78:122):18,t:(R.markLab||R.peak)?28:16,b:30};
+  const iw=W-pad.l-pad.r,ih=H-pad.t-pad.b,pts=R.pts,M=pts[pts.length-1].m||1,id=o.id||'c';
+  const keys=new Set(R.layers.map(L=>L.k));
+  let ymax=0;pts.forEach(p=>keys.forEach(k=>{if(p[k]>ymax)ymax=p[k]}));if(R.ref)ymax=Math.max(ymax,R.ref.y);if(R.ref2)ymax=Math.max(ymax,R.ref2.y);
+  let {step,top}=nice(ymax*1.06),lo=0;
+  if(R.autoMin){let mn=Infinity;pts.forEach(p=>keys.forEach(k=>{if(p[k]<mn)mn=p[k]}));if(R.ref)mn=Math.min(mn,R.ref.y);
+    step=nice((ymax-mn)*1.15).step;lo=Math.max(0,Math.floor(mn*0.98/step)*step);top=Math.ceil(ymax*1.03/step)*step}
+  const X=m=>pad.l+m/M*iw,Y=v=>pad.t+ih-((v-lo)/(top-lo))*ih;
+  const ylab=v=>narrow||v>=1e8?short(v):nf0.format(v);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Graf vývoje v čase" font-family="${getComputedStyle(document.body).fontFamily.replace(/"/g,"'")}">`;
+  s+=`<defs><pattern id="h-${id}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#EEF6E4"/><line x1="0" y1="0" x2="0" y2="7" stroke="#BEDD97" stroke-width="2.2"/></pattern></defs>`;
+  if(R.mark!=null&&R.markKind==='band'&&R.mark<M){s+=`<rect x="${X(R.mark)}" y="${pad.t}" width="${X(M)-X(R.mark)}" height="${ih}" fill="#EEF0EF"/>`}
+  for(let v=lo;v<=top+1e-6;v+=step){s+=`<line x1="${pad.l}" x2="${pad.l+iw}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E2E7EC" stroke-width="1"/><text x="${pad.l-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#6B7783">${v===0?'0':ylab(v)}</text>`}
+  const yearsTot=M/12;const ys=yearsTot<=6?1:yearsTot<=15?(narrow?3:2):yearsTot<=30?5:10;const off=R.age||0;
+  for(let y=off?Math.ceil(off/ys)*ys-off:0;y<=yearsTot+1e-9;y+=ys){const lab=off?String(y+off):(y===0?'dnes':y+' '+pl(y,'rok','roky','let'));s+=`<text x="${X(y*12)}" y="${H-9}" text-anchor="${y===0&&!off?'start':'middle'}" font-size="11.5" fill="#6B7783">${lab}</text>`}
+  const step2=Math.max(1,Math.floor(pts.length/500));const sp=pts.filter((p,i)=>i%step2===0||i===pts.length-1);
+  const path=k=>sp.map(p=>`${X(p.m).toFixed(1)},${Y(p[k]).toFixed(1)}`);
+  R.layers.forEach(L=>{
+    if(L.kind==='hatch'||L.kind==='fill'){const topP=path(L.k);const bot=sp.slice().reverse().map(p=>`${X(p.m).toFixed(1)},${Y(L.base?p[L.base]:lo).toFixed(1)}`);
+      s+=`<polygon points="${topP.concat(bot).join(' ')}" fill="${L.kind==='hatch'?`url(#h-${id})`:L.color}"/>`}
+  });
+  s+=`<line x1="${pad.l}" x2="${pad.l+iw}" y1="${pad.t+ih}" y2="${pad.t+ih}" stroke="#B9C0BC" stroke-width="2"/>`;
+  if(R.ref2){s+=`<line x1="${pad.l}" x2="${pad.l+iw}" y1="${Y(R.ref2.y)}" y2="${Y(R.ref2.y)}" stroke="${K.grey}" stroke-width="1.25" stroke-dasharray="2 3"/><text x="${pad.l+8}" y="${Y(R.ref2.y)-6}" font-size="11.5" font-weight="600" fill="#5B6670" paint-order="stroke" stroke="#fff" stroke-width="4">${R.ref2.lab}</text>`}
+  if(R.ref){s+=`<line x1="${pad.l}" x2="${pad.l+iw}" y1="${Y(R.ref.y)}" y2="${Y(R.ref.y)}" stroke="${K.teal}" stroke-width="1.5" stroke-dasharray="4 4"/><text x="${pad.l+8}" y="${Y(R.ref.y)-6}" font-size="12" font-weight="700" fill="#00869A" paint-order="stroke" stroke="#fff" stroke-width="4">${R.ref.lab} ${short(R.ref.y)}</text>`}
+  R.layers.forEach(L=>{if(L.kind==='line')s+=`<polyline points="${path(L.k).join(' ')}" fill="none" stroke="${L.color}" stroke-width="${L.w||2.5}" ${L.dash?`stroke-dasharray="${L.dash}"`:''} stroke-linejoin="round" stroke-linecap="round"/>`});
+  if(R.mark!=null&&R.mark<M){s+=`<line x1="${X(R.mark)}" x2="${X(R.mark)}" y1="${pad.t-4}" y2="${pad.t+ih}" stroke="${K.teal}" stroke-width="1" stroke-dasharray="3 3"/>`;
+    if(R.markKind==='band')s+=`<text x="${X(R.mark)+8}" y="${pad.t+ih-8}" font-size="11.5" fill="#6B7783">${R.markLab}</text>`;
+    else s+=`<circle cx="${X(R.mark)}" cy="${pad.t-12}" r="9" fill="${K.teal}"/><text x="${X(R.mark)}" y="${pad.t-8}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">✓</text>`}
+  if(R.peak){const px=X(R.peak.m),py=Y(R.peak.v);s+=`<circle cx="${px}" cy="${py}" r="4.5" fill="${K.green}" stroke="#fff" stroke-width="2"/><text x="${px}" y="${py-11}" text-anchor="middle" font-size="${narrow?12.5:14}" font-weight="800" fill="${R.peak.color}" paint-order="stroke" stroke="#fff" stroke-width="4">${endFmt(R.peak.v)}</text>`}
+  const last=pts[pts.length-1];
+  const labs=ends.map(L=>({L,y:Y(last[L.k]),v:last[L.k]})).sort((a,b)=>a.y-b.y);
+  const gap=fsEnd+4;for(let i=1;i<labs.length;i++){if(labs[i].y-labs[i-1].y<gap)labs[i].y=labs[i-1].y+gap}
+  const over=labs.length?labs[labs.length-1].y-(pad.t+ih):0;if(over>0)labs.forEach(a=>a.y-=over);
+  ends.forEach(L=>{s+=`<circle cx="${X(last.m)}" cy="${Y(last[L.k])}" r="3.5" fill="${L.color}"/>`});
+  labs.forEach(a=>{const c=a.L.color===K.faint?'#7A8590':a.L.color===K.green?K.greenInk:a.L.color;s+=`<text x="${pad.l+iw+10}" y="${a.y+fsEnd*0.35}" font-size="${fsEnd}" font-weight="800" fill="${c}">${endFmt(a.v)}</text>`});
+  if(!o.static){s+=`<line class="hov" x1="0" x2="0" y1="${pad.t}" y2="${pad.t+ih}" stroke="${K.ink}" stroke-width="1" opacity="0"/><rect class="hit" x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" fill="transparent"/>`}
+  s+='</svg>';
+  el.innerHTML=s+(o.static?'':'<div class="tip" hidden></div>');
+  if(o.static)return;
+  const svg=el.querySelector('svg'),hit=el.querySelector('.hit'),hov=el.querySelector('.hov'),tip=el.querySelector('.tip');
+  const rows=R.layers.filter(L=>L.lab&&!L.noLeg);
+  const move=e=>{const rc=svg.getBoundingClientRect();const sx=(e.clientX-rc.left)*W/rc.width;let m=Math.round((sx-pad.l)/iw*M);m=Math.max(0,Math.min(M,m));
+    const p=pts.find(q=>q.m===m)||last;hov.setAttribute('x1',X(m));hov.setAttribute('x2',X(m));hov.setAttribute('opacity','.3');
+    tip.innerHTML=`<b>${R.age!=null?'Věk '+Math.floor(R.age+m/12):(m===0?'Dnes':doba(m))}</b>`+rows.map(L=>{const v=L.tipK==='yield'?p.value-p.dep:p[L.k];return `<div><span><i class="sw" style="background:${L.kind==='hatch'?K.green:L.color}"></i>${L.lab}</span><span>${kc(v)}</span></div>`}).join('');tip.hidden=false;
+    const px=X(m)/W*rc.width;const tw=tip.offsetWidth;tip.style.left=Math.min(Math.max(0,px+12+tw>rc.width?px-tw-12:px+12),rc.width-tw)+'px';tip.style.top='6px'};
+  hit.addEventListener('pointermove',move);hit.addEventListener('pointerdown',move);
+  hit.addEventListener('pointerleave',()=>{tip.hidden=true;hov.setAttribute('opacity','0')});
+}
+
+/* ---------- dlaždice ---------- */
+function tilesHTML(R){
+  const chip=R.chip?`<span class="pill ${R.chip[0]}">${R.chip[1]}${R.chip[2]===false?'':' <i>(orientačně)</i>'}</span>`:'';
+  return `<div class="tile lead ${R.tone||'teal'}"><span class="tl">${R.label}</span><span class="tv">${R.big}</span>${R.unit?`<span class="tc">${R.unit}</span>`:''}${chip}</div>`+
+    R.stats.map(([l,v,t])=>`<div class="tile ${t||'grey'}"><span class="tl">${l}</span><span class="tv">${v}</span></div>`).join('');
+}
+
+/* Čísla v dlaždicích nesmí přetéct: zmenší písmo, dokud se nevejde. */
+function fitTiles(root){root.querySelectorAll('.tile .tv').forEach(v=>{v.style.fontSize='';let fs=parseFloat(getComputedStyle(v).fontSize);
+  while(v.scrollWidth>v.clientWidth+0.5&&fs>10){fs-=0.5;v.style.fontSize=fs+'px'}})}
+function update(){
+  save();const R=compute();lastR=R;
+  $('#tiles').innerHTML=tilesHTML(R);fitTiles($('#tiles'));
+  $('#a-say').innerHTML=R.say.map(t=>`<p>${t}</p>`).join('');
+  $('#legend').innerHTML=legendHTML(R);
+  $('#cnote').textContent=chartNote(R);
+  drawChart(R,$('#chart'));
+  if(R.table){$('#det').hidden=false;$('#tbl').innerHTML=`<table><thead><tr>${R.table.head.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${R.table.rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</tbody></table>`}else $('#det').hidden=true;
+}
+
+/* ---------- tiskový výstup ---------- */
+function assumptions(){
+  const rows=cur.f.map(k=>[F[k].l,show(k,S[k])+' '+F[k].u]);
+  if(cur.infl&&S.useInfl){rows.push(['Inflace',show('infl',S.infl)+' % p.a.']);if(cur.goal&&S.realGoal)rows.push([realLab()[0],'ano'])}
+  if(cur.cmp&&S.useCmp)rows.push([F[cur.cmp].l,show(cur.cmp,S[cur.cmp])+' '+F[cur.cmp].u]);
+  rows.push(['Připisování výnosu','měsíčně']);
+  return rows;
+}
+function buildPrint(){
+  const R=compute();const date=new Date().toLocaleDateString('cs-CZ');
+  const n=1+R.stats.length;
+  $('#printout').innerHTML=`<div class="pp">
+    <div class="ph"><div class="brand"><div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M5 19V13M10 19V7M15 19V10M20 19V4"/></svg></div>
+      <div><h1>${cur.t}</h1><p>${R.sub||cur.grp}</p></div></div>
+      <div class="pr"><b>${esc(S.client||'Propočet pro klienta')}</b><span>zpracováno ${date}${S.advisor?' · '+esc(S.advisor):''}</span></div></div>
+    <div class="rule"></div>
+    <div class="tiles" style="--n:${Math.min(n,5)}">${tilesHTML(R)}</div>
+    <h2 class="sec">Vývoj v čase</h2>
+    <div class="chartcard"><div class="cnote">${chartNote(R)}</div><div id="pchart"></div><div class="legend">${legendHTML(R,'p')}</div></div>
+    <div class="pbottom">
+      <div class="callout"><div class="txt">${R.say.map(t=>`<p>${t}</p>`).join('')}</div></div>
+      <div class="card assump"><h4>Předpoklady výpočtu</h4>${assumptions().map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join('')}</div>
+    </div>
+    <div class="pfoot">${FOOT}${S.advisor?` Zpracoval: <b>${esc(S.advisor)}</b>.`:''}</div>
+  </div>`;
+  fitPrint(R);
+}
+/* Přizpůsobení jedné stránce A4: změří obsah (jiná písma na Windows/Macu) a zmenší graf, případně celou stránku. */
+function fitPrint(R){
+  const po=$('#printout'),pp=po.firstElementChild,inner=pp.style;
+  const prev=po.getAttribute('style');po.setAttribute('style','display:block;position:absolute;left:-10000px;top:0;width:297mm;visibility:hidden');
+  pp.style.height='auto';fitTiles(pp);
+  const limit=pp.getBoundingClientRect().width*209/297; /* výška A4 na šířku v px podle skutečné šířky */
+  let H=270;
+  do{drawChart(R,$('#pchart'),{W:1040,H,static:true,id:'p'});H-=10}while(pp.scrollHeight>limit-2&&H>=140);
+  const hgt=pp.scrollHeight;
+  pp.style.height='';
+  if(hgt>limit-2){const z=(limit-4)/hgt;pp.style.zoom=z;pp.style.width=(297/z)+'mm';pp.style.height=(209/z)+'mm'}else{pp.style.zoom='';pp.style.width=''}
+  pp.dataset.fit=hgt>limit-2?'zoom':'H'+(H+10);
+  if(prev==null)po.removeAttribute('style');else po.setAttribute('style',prev);
+}
+
+/* ---------- ovládání ---------- */
+$('#foot').innerHTML=FOOT;
+const ci=$('#client'),ai=$('#advisor');ci.value=S.client||'';ai.value=S.advisor||'';
+ci.oninput=()=>{S.client=ci.value;save()};ai.oninput=()=>{S.advisor=ai.value;save()};
+$('#print').onclick=()=>{buildPrint();setTimeout(()=>{try{window.print()}catch(e){}},50)};
+window.addEventListener('beforeprint',buildPrint);
+$('#copy').onclick=()=>{const txt=lastR?lastR.say.join(' ').replace(/ /g,' '):'';const b=$('#copy');
+  const done=()=>{b.textContent='Zkopírováno';setTimeout(()=>b.textContent='Kopírovat',1600)};
+  try{navigator.clipboard.writeText(txt).then(done,()=>{selectSay()})}catch(e){selectSay()}};
+function selectSay(){const r=document.createRange();r.selectNodeContents($('#a-say'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('#copy').textContent='Označeno, stiskněte Ctrl+C'}
+
+let rt;if(window.ResizeObserver)new ResizeObserver(()=>{clearTimeout(rt);rt=setTimeout(()=>{if(lastR){drawChart(lastR,$('#chart'));fitTiles($('#tiles'))}},60)}).observe($('#chart'));
+renderQuestions();renderInputs();update();
+})();
+</script>
+</body>
+</html>
